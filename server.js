@@ -23,6 +23,7 @@ app.get("/", (req, res) => {
 });
 
 app.post("/update-product-metafield", async (req, res) => {
+  console.log("Incoming payload:", req.body);
   let { productId, yearRange } = req.body;
   if (!productId || !yearRange) {
     return res.status(400).json({
