@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
-// Add CORS here:
 app.use(
   cors({
     origin: "*",
@@ -17,23 +16,25 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
 app.use(express.json());
 
-// Health check
 app.get("/", (req, res) => {
   res.send("Product Metafield API is live");
 });
 
-// 🔧 Update Product Metafield
 app.post("/update-product-metafield", async (req, res) => {
-  const { productId, yearRange } = req.body;
+  let { productId, yearRange } = req.body;
 
   if (!productId || !yearRange) {
     return res.status(400).json({
       success: false,
       message: "Missing productId or yearRange",
     });
+  }
+
+  // 🧼 Clean GID if needed
+  if (productId.startsWith("gid://shopify/Product/")) {
+    productId = productId.replace("gid://shopify/Product/", "");
   }
 
   try {
@@ -51,39 +52,34 @@ app.post("/update-product-metafield", async (req, res) => {
       });
     }
 
-    const yearList = Array.from(
-      { length: endYear - startYear + 1 },
-      (_, i) => startYear + i
-    );
+    const yearList = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
     const yearString = yearList.join(",");
 
     const productGID = `gid://shopify/Product/${productId}`;
 
     const query = `
-    mutation {
-      metafieldsSet(metafields: [
-        {
-          namespace: "custom",
-          key: "vehicle_year_range_list",
-          type: "single_line_text_field",
-          value: "${yearString}",
-          ownerId: "${productGID}"
-        }
-      ]) {
-        metafields {
-          key
-          namespace
-          value
-        }
-        userErrors {
-          field
-          message
+      mutation {
+        metafieldsSet(metafields: [
+          {
+            namespace: "custom",
+            key: "vehicle_year_range_list",
+            type: "single_line_text_field",
+            value: "${yearString}",
+            ownerId: "${productGID}"
+          }
+        ]) {
+          metafields {
+            key
+            namespace
+            value
+          }
+          userErrors {
+            field
+            message
+          }
         }
       }
-    }
-  `;
-  
-
+    `;
 
     const response = await axios.post(
       `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/graphql.json`,
@@ -97,7 +93,6 @@ app.post("/update-product-metafield", async (req, res) => {
     );
 
     const data = response.data;
-    console.log("Shopify API response:", JSON.stringify(data, null, 2));
     const errors = data?.data?.metafieldsSet?.userErrors || [];
 
     if (errors.length > 0) {
@@ -122,7 +117,6 @@ app.post("/update-product-metafield", async (req, res) => {
   }
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
